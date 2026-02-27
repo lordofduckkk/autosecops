@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  victim:
+    image: linuxserver/openssh-server:latest
+    container_name: autosecops-victim
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=test123
+      - USER_NAME=testuser
+    ports:
+      - "2222:22"
+    networks:
+      - autosecops-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: autosecops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - autosecops-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: autosecops-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    networks:
+      - autosecops-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  autosecops-net:
+    driver: bridge

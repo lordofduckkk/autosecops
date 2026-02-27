@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'autosecops-agent'
+    static_configs:
+      - targets: ['172.21.166.81:8000']
+    relabel_configs:
+      - target_label: instance
+        replacement: 'autosecops-wsl2-native'
