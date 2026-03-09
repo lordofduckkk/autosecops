@@ -1,0 +1,29 @@
+groups:
+  - name: autosecops_alerts
+    rules:
+      - alert: HighMitigationLatency
+        expr: histogram_quantile(0.95, sum(rate(autosecops_mitigation_latency_seconds_bucket[5m])) by (le)) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High mitigation latency"
+          description: "95th percentile latency is {{ $value }}s (SLO: 30s)"
+
+      - alert: SecurityAgentDown
+        expr: autosecops_service_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Security Agent is down"
+          description: "Agent hasn't sent heartbeat for 1 minute"
+
+      - alert: HighIncidentRate
+        expr: sum(rate(autosecops_incidents_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High attack rate detected"
+          description: "More than 6 incidents per minute"

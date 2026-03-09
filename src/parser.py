@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🔍 Log Parser для AutoSecOps
+Log Parser для AutoSecOps
 Читает auth.log в реальном времени и детектирует brute-force атаки
 """
 import re
@@ -23,22 +23,31 @@ class AttackDetector:
         self.whitelist = set(config.get('whitelist', []))
         self.failed_attempts = defaultdict(deque)
         
-        # 🚫 Инициализируем блокировщик
+        #Инициализируем блокировщик
         self.blocker = IPBlocker(self.whitelist)
         
         # Regex для Ubuntu 24.04 (ISO-формат) + классический syslog
         self.failed_pattern = re.compile(
             r'(?:\d{4}-\d{2}-\d{2}T[\d:.]+\+[\d:]+|\w+\s+\d+\s+[\d:]+)\s+\S+\s+sshd\[\d+\]:\s+Failed password for (?:invalid user )?(\S+) from (\d+\.\d+\.\d+\.\d+)'
         )
-    
+
+        
     def is_whitelisted(self, ip: str) -> bool:
-        if ip in self.whitelist:
-            return True
-        for entry in self.whitelist:
-            if '/' in entry and ip.startswith(entry.split('/')[0].rsplit('.', 1)[0]):
-                return True
+        import ipaddress
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            for entry in self.whitelist:
+                if '/' in entry:
+                    if ip_obj in ipaddress.ip_network(entry, strict=False):
+                        return True
+                elif ip == entry: 
+                    return True
+        except ValueError:
+            pass
         return False
-    
+
+
+
     def parse_line(self, line: str) -> dict | None:
         match = self.failed_pattern.search(line)
         if match:
@@ -63,25 +72,23 @@ class AttackDetector:
         ip = parsed['ip']
         
         if self.is_whitelisted(ip):
-            print(f"⚪ WHITELIST: {ip} skipped", flush=True)
+            print(f"WHITELIST: {ip} skipped", flush=True)
             return None
                     
-            # 🚫 БЛОКИРУЕМ IP через iptables!
+            #БЛОКИРУЕМ IP через iptables!
         if self.record_attempt(ip):
             start_time = time.time()  # ← Замер времени
-            alert = f"🚨 ALERT: IP {ip} blocked ({parsed['user']}, {len(self.failed_attempts[ip])} attempts)"
+            alert = f"ALERT: IP {ip} blocked ({parsed['user']}, {len(self.failed_attempts[ip])} attempts)"
             self.failed_attempts[ip].clear()
 
             if self.blocker.block_ip(ip):
-                alert += " 🚫 FIREWALL"
-                # === Запись метрик ===
+                alert += "FIREWALL"
+                # === Запись метрик=
                 record_incident('brute_force')
                 latency = time.time() - start_time
                 record_latency('brute_force', latency)
-                # Обновляем счётчик заблокированных IP
                 set_blocked_count(len(self.blocker.list_blocked()))
-
-            return alert
+                return alert
         return None
 
 def load_whitelist(path: str) -> list[str]:
@@ -98,25 +105,40 @@ def main():
         'time_window_sec': 60,
         'whitelist': load_whitelist('config/whitelist.txt')
     }
-    # === Инициализация метрик ===
+    #== Инициализация метрик ===
     setup_metrics(port=8000, bind_addr='0.0.0.0')  # WSL2: localhost доступен из Docker
     SERVICE_UP.set(1)
-    print(f"📊 Metrics exposed on http://127.0.0.1:8000/metrics\n")
-    print(f"🔍 AutoSecOps Parser started. Monitoring {config['log_path']}")
-    print(f"📊 Threshold: {config['max_attempts']} attempts in {config['time_window_sec']}s")
-    print(f"✅ Whitelisted IPs: {config['whitelist']}\n")
+    print(f"Metrics exposed on http://127.0.0.1:8000/metrics\n")
+    print(f"AutoSecOps Parser started. Monitoring {config['log_path']}")
+    print(f"Threshold: {config['max_attempts']} attempts in {config['time_window_sec']}s")
+    print(f"Whitelisted IPs: {config['whitelist']}\n")
     
     detector = AttackDetector(config)
     
+
+    set_blocked_count(len(detector.blocker.list_blocked()))
     try:
-        for line in tailer.follow(open(config['log_path'], 'r')):
-            alert = detector.process_line(line)
-            if alert:
-                print(alert, flush=True)
+        with open(config['log_path'], 'r') as log_file:
+            for line in tailer.follow(log_file):
+                alert = detector.process_line(line)
+                if alert:
+                    print(alert, flush=True)
+    except FileNotFoundError:
+        print(f"Error: Log file not found: {config['log_path']}")
+        SERVICE_UP.set(0)
+        sys.exit(1)
+    except PermissionError:
+        print(f"Error: Permission denied reading {config['log_path']}")
+        SERVICE_UP.set(0)
+        sys.exit(1)
     except KeyboardInterrupt:
-        print("\n👋 Parser stopped by user")
+        print("\nParser stopped by user")
+        SERVICE_UP.set(0)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
+        SERVICE_UP.set(0)
+
 
 if __name__ == '__main__':
     main()
+

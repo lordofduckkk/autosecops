@@ -30,11 +30,11 @@ COPY config/ ./config/
 RUN chown -R secagent:secagent /app && \
     chmod +x /app/src/*.py
 
-#USER secagent
+USER secagent
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import sys; sys.exit(0)" || exit 1
+    CMD curl -f http://localhost:8000/metrics || exit 1
 
 CMD ["python3", "src/parser.py"]

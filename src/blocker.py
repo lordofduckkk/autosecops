@@ -21,7 +21,7 @@ class IPBlocker:
         success, output = self._run_iptables(["-L", "INPUT", "--line-numbers"])
         if success and CHAIN_NAME not in output:
             self._run_iptables(["-I", "INPUT", "1", "-j", CHAIN_NAME])
-            logger.info(f"✅ Chain {CHAIN_NAME} added to INPUT")
+            logger.info(f"Chain {CHAIN_NAME} added to INPUT")
 
     def is_whitelisted(self, ip: str) -> bool:
         try:
@@ -38,13 +38,13 @@ class IPBlocker:
 
     def block_ip(self, ip: str) -> bool:
         if self.is_whitelisted(ip):
-            logger.warning(f"⚠️ Cannot block whitelisted IP: {ip}")
+            logger.warning(f"Cannot block whitelisted IP: {ip}")
             return False
         if self.is_blocked(ip):
             return True
         success, _ = self._run_iptables(["-A", CHAIN_NAME, "-s", ip, "-j", "DROP"])
         if success:
-            logger.info(f"🚫 BLOCKED: {ip}")
+            logger.info(f"BLOCKED: {ip}")
         return success
 
     def is_blocked(self, ip: str) -> bool:
@@ -52,12 +52,22 @@ class IPBlocker:
         return success and ip in output
 
     def list_blocked(self) -> list[str]:
-        success, output = self._run_iptables(["-L", CHAIN_NAME, "-n"])
-        if not success: return []
+        """Возвращает список заблокированных IP из iptables"""
+        success, output = self._run_iptables(["-L", CHAIN_NAME, "-n", "--line-numbers"])
+        if not success: 
+            return []
+    
         ips = []
         for line in output.split('\n'):
-            if 'DROP' in line and '0.0.0.0/0' not in line:
-                for part in line.split():
-                    if '.' in part and ':' not in part:
-                        ips.append(part.split('/')[0])
+            # Пропускаем заголовки и пустые строки
+            if 'Chain' in line or 'references' in line or not line.strip():
+                continue
+            # Ищем строки с DROP
+            if 'DROP' in line:
+                parts = line.split()
+                # IP находится в 4-й колонке (после num, target, prot, opt)
+                if len(parts) >= 5:
+                    ip = parts[4].split('/')[0]  # Убираем маску /0
+                    if '.' in ip and ip != '0.0.0.0':
+                        ips.append(ip)
         return ips
