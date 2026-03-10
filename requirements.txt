@@ -1,3 +1,4 @@
 tailer>=0.4.1
 prometheus-client>=0.19.0
 PyYAML>=6.0
+flake8>=6.0.0
