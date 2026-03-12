@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-import subprocess, logging, ipaddress
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import subprocess
+import logging
+import ipaddress
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
 logger = logging.getLogger(__name__)
 CHAIN_NAME = "AUTOSECOPS_BLOCK"
+
 
 class IPBlocker:
     def __init__(self, whitelist: list[str]):
@@ -11,7 +20,13 @@ class IPBlocker:
 
     def _run_iptables(self, args: list[str]) -> tuple[bool, str]:
         try:
-            result = subprocess.run(["sudo", "iptables"] + args, capture_output=True, text=True, timeout=5)
+
+            result = subprocess.run(
+                ["sudo", "iptables"] + args,
+                capture_output=True,
+                text=True,
+                timeout=5)
+
             return result.returncode == 0, result.stderr or result.stdout
         except Exception as e:
             return False, str(e)
@@ -30,8 +45,10 @@ class IPBlocker:
                 if '/' in entry:
                     if ip_obj in ipaddress.ip_network(entry, strict=False):
                         return True
+
                 elif ip == entry:
                     return True
+
         except ValueError:
             pass
         return False
@@ -39,10 +56,14 @@ class IPBlocker:
     def block_ip(self, ip: str) -> bool:
         if self.is_whitelisted(ip):
             logger.warning(f"Cannot block whitelisted IP: {ip}")
+
             return False
+
         if self.is_blocked(ip):
             return True
-        success, _ = self._run_iptables(["-A", CHAIN_NAME, "-s", ip, "-j", "DROP"])
+        success, _ = self._run_iptables(
+            ["-A", CHAIN_NAME, "-s", ip, "-j", "DROP"])
+
         if success:
             logger.info(f"BLOCKED: {ip}")
         return success
@@ -53,10 +74,12 @@ class IPBlocker:
 
     def list_blocked(self) -> list[str]:
         """Возвращает список заблокированных IP из iptables"""
-        success, output = self._run_iptables(["-L", CHAIN_NAME, "-n", "--line-numbers"])
-        if not success: 
+        success, output = self._run_iptables(
+            ["-L", CHAIN_NAME, "-n", "--line-numbers"])
+        if not success:
+
             return []
-    
+
         ips = []
         for line in output.split('\n'):
             # Пропускаем заголовки и пустые строки
@@ -65,7 +88,7 @@ class IPBlocker:
             # Ищем строки с DROP
             if 'DROP' in line:
                 parts = line.split()
-                # IP находится в 4-й колонке (после num, target, prot, opt)
+                # IP находится в 4 колонке (после num, target, prot, opt)
                 if len(parts) >= 5:
                     ip = parts[4].split('/')[0]  # Убираем маску /0
                     if '.' in ip and ip != '0.0.0.0':

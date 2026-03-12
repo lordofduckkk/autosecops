@@ -2,9 +2,11 @@
 import atexit
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
+
 def setup_metrics(port: int = 8000, bind_addr: str = '127.0.0.1'):
     """Запускает HTTP server для scrape. Вызывать один раз при старте."""
     start_http_server(port, addr=bind_addr)
+
 
 # === Метрики (глобальные, thread-safe) ===
 INCIDENTS_TOTAL = Counter(
@@ -30,17 +32,21 @@ BLOCKED_IPS_CURRENT = Gauge(
     'Current number of blocked IPs'
 )
 
-# === Хелперы ===
+
+# === Хелперы==
 def record_incident(attack_type: str = 'brute_force'):
     INCIDENTS_TOTAL.labels(attack_type=attack_type).inc()
+
 
 def record_latency(attack_type: str, seconds: float):
     MITIGATION_LATENCY.labels(attack_type=attack_type).observe(seconds)
 
+
 def set_blocked_count(count: int):
     BLOCKED_IPS_CURRENT.set(count)
 
-# === Graceful shutdown ===
+
+# ===Graceful shutdown===
 @atexit.register
 def _on_exit():
     SERVICE_UP.set(0)
