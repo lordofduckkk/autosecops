@@ -31,7 +31,7 @@ curl -s http://127.0.0.1:8000/metrics | grep autosecops
 ## Метрики
 
 | Метрика | Тип | Описание |
-|---------|----------------|
+|---------|-----|----------|
 | autosecops_incidents_total  | Counter | Всего детектированных атак |
 | autosecops_mitigation_latency_seconds | Histogram | Время от детекции до блокировки |
 | autosecops_service_up | Gauge | 1 = агент работает, 0 = упал |
